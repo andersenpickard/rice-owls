@@ -398,7 +398,7 @@
 
         let allEvents = [];
         let lastFetchTime = null;
-        let geocodeCache = {}; // Cache geocoded locations to avoid repeat lookups
+        let geocodeCache = {}; // Cache geocoded locations
 
         // Haversine formula to calculate distance between two coordinates
         function calculateDistance(lat1, lon1, lat2, lon2) {
@@ -657,7 +657,7 @@
             resultsSection.style.display = 'block';
         }
 
-        // Handle form submission - geocode only when searching
+        // Handle form submission - parallel geocoding for speed
         document.getElementById('searchForm').addEventListener('submit', async (e) => {
             e.preventDefault();
 
@@ -687,16 +687,30 @@
                 return;
             }
 
-            // Geocode only the events we need to search
+            // Get all unique locations that need geocoding
+            const uniqueLocations = new Set();
+            allEvents.forEach(event => {
+                if (event.location && (!event.lat || !event.lon)) {
+                    uniqueLocations.add(event.location);
+                }
+            });
+
+            // Geocode all unique locations in parallel (5 at a time for speed)
+            const locationArray = Array.from(uniqueLocations);
+            const batchSize = 5;
+            for (let i = 0; i < locationArray.length; i += batchSize) {
+                const batch = locationArray.slice(i, i + batchSize);
+                await Promise.all(batch.map(loc => geocodeLocation(loc)));
+            }
+
+            // Apply geocoded coordinates to events
             const eventsToSearch = [];
             for (const event of allEvents) {
                 if (!event.lat || !event.lon) {
-                    if (event.location) {
-                        const coords = await geocodeLocation(event.location);
-                        if (coords) {
-                            event.lat = coords.lat;
-                            event.lon = coords.lon;
-                        }
+                    if (event.location && geocodeCache[event.location]) {
+                        const coords = geocodeCache[event.location];
+                        event.lat = coords.lat;
+                        event.lon = coords.lon;
                     }
                 }
                 if (event.lat && event.lon) {
