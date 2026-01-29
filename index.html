@@ -394,7 +394,8 @@
         // ============================================
         // CONFIGURATION
         // ============================================
-        const ICS_FILE_URL = 'https://raw.githubusercontent.com/andersenpickard/rice-owls/refs/heads/main/calendar.ics';
+        // Convert webcal to https
+        const ICS_FILE_URL = 'https://riceowls.com/api/v2/Calendar/subscribe?type=ics';
 
         let allEvents = [];
         let lastFetchTime = null;
