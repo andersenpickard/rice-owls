@@ -392,7 +392,7 @@
 
     <script>
         // ============================================
-        // CONFIGURATION - Update these URLs
+        // CONFIGURATION
         // ============================================
         const ICS_FILE_URL = 'https://raw.githubusercontent.com/andersenpickard/rice-owls/refs/heads/main/calendar.ics';
 
@@ -430,7 +430,10 @@
                 } else if (line.startsWith('SUMMARY:')) {
                     currentEvent.title = line.substring(8).trim();
                 } else if (line.startsWith('LOCATION:')) {
-                    currentEvent.location = line.substring(9).trim();
+                    // Unescape commas and other escaped characters
+                    let location = line.substring(9).trim();
+                    location = location.replace(/\\,/g, ',').replace(/\\n/g, '\n');
+                    currentEvent.location = location;
                 } else if (line.startsWith('DTSTART')) {
                     const match = line.match(/DTSTART[^:]*:(.+)/);
                     if (match) {
@@ -558,8 +561,9 @@
                 const icsContent = await response.text();
                 let parsedEvents = parseICS(icsContent);
 
+                console.log(`Found ${parsedEvents.length} total events. Geocoding locations...`);
+                
                 // Geocode events that don't have coordinates
-                console.log(`Found ${parsedEvents.length} events. Geocoding locations...`);
                 const geocodedEvents = [];
                 for (const event of parsedEvents) {
                     if (!event.lat || !event.lon) {
@@ -580,10 +584,18 @@
 
                 // Filter to future events only
                 const now = new Date();
+                console.log(`Current date: ${now.toISOString()}`);
+                
                 allEvents = geocodedEvents
                     .filter(event => {
+                        if (!event.lat || !event.lon) return false;
                         const eventDate = parseDateTime(event.dtstart);
-                        return new Date(eventDate.date) >= now && event.lat && event.lon;
+                        const eventDateObj = new Date(eventDate.date);
+                        const isFuture = eventDateObj >= now;
+                        if (!isFuture) {
+                            console.log(`Filtered out past event: ${event.title} (${eventDate.date})`);
+                        }
+                        return isFuture;
                     })
                     .sort((a, b) => {
                         const dateA = new Date(parseDateTime(a.dtstart).date);
@@ -591,7 +603,7 @@
                         return dateA - dateB;
                     });
 
-                console.log(`Successfully loaded ${allEvents.length} events with coordinates`);
+                console.log(`Successfully loaded ${allEvents.length} future events with coordinates`);
                 lastFetchTime = new Date().toLocaleTimeString();
                 updateDataStatus();
                 return allEvents;
